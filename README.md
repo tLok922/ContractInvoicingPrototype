@@ -1,1 +1,1 @@
-# ContractInvoicingPrototype
+# Contract Invoicing Prototype
