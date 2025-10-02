@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Contract & Financials — Prototype</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    :root{--accent:#2563eb;--muted:#6b7280;--bg:#f7fafc}
+    *{box-sizing:border-box;font-family:Inter,ui-sans-serif,system-ui,Segoe UI,Roboto,'Helvetica Neue',Arial}
+    body{margin:0;background:var(--bg);height:100vh;display:flex}
+    .sidebar{width:300px;background:#fff;border-right:1px solid #e6edf3;padding:18px;overflow:auto}
+    .brand{font-weight:700;color:var(--accent);margin-bottom:12px}
+    .search{width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:12px}
+    .contract{padding:10px;border-radius:8px;margin-bottom:8px;cursor:pointer;border:1px solid transparent}
+    .contract:hover{background:#f1f5f9}
+    .contract.active{border-color:var(--accent);box-shadow:0 1px 0 rgba(37,99,235,0.08)}
+    .main{flex:1;padding:18px;overflow:auto}
+    .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+    .tabs{display:flex;gap:8px}
+    .tab{padding:8px 12px;border-radius:8px;background:#fff;border:1px solid #e2e8f0;cursor:pointer}
+    .tab.active{background:linear-gradient(180deg,#fff,#eef6ff);border-color:var(--accent);color:var(--accent)}
+    .card{background:#fff;padding:14px;border-radius:10px;border:1px solid #e6edf3}
+    .grid{display:grid;gap:12px}
+    .two{grid-template-columns:1fr 420px}
+    label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
+    .small{font-size:13px;color:var(--muted)}
+    table{width:100%;border-collapse:collapse}
+    td,th{padding:8px;border-bottom:1px solid #f1f5f9;text-align:left}
+    .btn{padding:8px 10px;border-radius:8px;border:0;background:var(--accent);color:#fff;cursor:pointer}
+    .btn.ghost{background:transparent;color:var(--accent);border:1px solid #dbeafe}
+    .status{padding:6px 8px;border-radius:999px;font-size:12px}
+    .status.issued{background:#fff7ed;color:#92400e;border:1px solid #feedd6}
+    .status.paid{background:#ecfdf5;color:#064e3b;border:1px solid #d1fae5}
+    .status.overdue{background:#fff1f2;color:#991b1b;border:1px solid #ffdde0}
+    .note{font-size:13px;color:#374151}
+    .footer{margin-top:12px;font-size:13px;color:var(--muted)}
+    .muted {color:var(--muted)}
+  </style>
+</head>
+<body>
+  <div class="sidebar">
+    <div class="brand">Contract Financials — Prototype</div>
+    <input id="search" class="search" placeholder="Search contracts..." />
+    <div id="contractList"></div>
+    <hr style="margin:12px 0;border:none;border-top:1px solid #f1f5f9">
+    <div class="card" style="margin-top:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div style="font-weight:600">Quick Filters</div>
+        <button class="btn ghost" onclick="newContract()">+ New</button>
+      </div>
+      <div class="small"><strong id="totalContracts">0</strong> contracts • <span id="upcomingCount">0</span> upcoming invoices</div>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="top">
+      <div style="display:flex;gap:12px;align-items:center">
+        <div id="selectedTitle" style="font-weight:700;">Select a contract</div>
+        <div id="selectedDates" class="small muted"></div>
+      </div>
+      <div class="tabs">
+        <div class="tab active" data-tab="details" onclick="switchTab('details')">Details</div>
+        <div class="tab" data-tab="invoices" onclick="switchTab('invoices')">Invoices</div>
+        <div class="tab" data-tab="dashboard" onclick="switchTab('dashboard')">Dashboard</div>
+      </div>
+    </div>
+
+    <div id="content">
+      <!-- DETAILS -->
+      <div id="details" class="card" style="display:block">
+        <div class="grid two">
+          <div>
+            <h3>Contract Summary</h3>
+            <div id="contractSummary" class="note">Choose a contract on the left to see details.</div>
+            <hr style="margin:12px 0;border:none;border-top:1px solid #f1f5f9">
+            <h4>Payment Terms</h4>
+            <div id="paymentTerms" class="note">—</div>
+            <hr style="margin:12px 0;border:none;border-top:1px solid #f1f5f9">
+            <h4>Deliverables & Milestones</h4>
+            <div id="milestones" class="note">—</div>
+          </div>
+
+          <div>
+            <h4>Actions</h4>
+            <div style="display:flex;gap:8px;margin-bottom:8px">
+              <button class="btn" onclick="issueNextInvoice()">Auto-issue next</button>
+              <button class="btn ghost" onclick="exportCsv()">Export CSV</button>
+            </div>
+            <div class="footer">Auto-issue will move the next invoice to <strong>Issued</strong> and add a timestamp — ideal for accounting follow-up.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- INVOICES -->
+      <div id="invoices" class="card" style="display:none;margin-top:12px">
+        <h3>Invoices</h3>
+        <div style="margin-bottom:8px;display:flex;gap:8px;align-items:center">
+          <label style="margin:0">Filter status</label>
+          <select id="filterStatus" onchange="renderInvoices()">
+            <option value="all">All</option>
+            <option value="issued">Issued</option>
+            <option value="paid">Paid</option>
+            <option value="overdue">Overdue</option>
+            <option value="pending">Pending</option>
+          </select>
+        </div>
+        <div id="invoiceTableWrapper">
+          <table id="invoiceTable">
+            <thead>
+              <tr><th>Date</th><th>Amount</th><th>Term</th><th>Status</th><th>Notes</th><th>Actions</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- DASHBOARD -->
+      <div id="dashboard" class="card" style="display:none;margin-top:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <div>
+            <h3>Financial Insights</h3>
+            <div class="small muted">Overview of past collections and upcoming expected invoices</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <label class="small muted" style="margin:0">Range</label>
+            <select id="dashboardRange" onchange="renderDashboard()">
+              <option value="30">Past 30 days</option>
+              <option value="90">Past 90 days</option>
+              <option value="180">Past 180 days</option>
+            </select>
+          </div>
+        </div>
+        <canvas id="trendChart" height="120"></canvas>
+        <div style="display:flex;gap:12px;margin-top:12px">
+          <div class="card" style="flex:1">
+            <div class="small muted">Issued (past range)</div>
+            <div style="font-weight:700;font-size:20px" id="issuedValue">—</div>
+          </div>
+          <div class="card" style="flex:1">
+            <div class="small muted">Collected (past range)</div>
+            <div style="font-weight:700;font-size:20px" id="collectedValue">—</div>
+          </div>
+          <div class="card" style="flex:1">
+            <div class="small muted">Outstanding</div>
+            <div style="font-weight:700;font-size:20px" id="outstandingValue">—</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+<script>
+// ---------------- Sample data ----------------
+const sampleContracts = [
+  { id: 'C-001', client:'Acme Corp', title:'Website Revamp', start:'2025-06-01', end:'2025-09-30', value:30000,
+    paymentTerms:[{label:'Upfront',pct:50,offsetDays:0},{label:'On Launch',pct:50,offsetDays:120}],
+    milestones:[{title:'Design complete',date:'2025-07-01'},{title:'Dev complete',date:'2025-09-01'}]
+  },
+  { id: 'C-002', client:'Blue Retail', title:'Mobile App', start:'2025-07-15', end:'2025-12-15', value:50000,
+    paymentTerms:[{label:'30% after first milestone',pct:30,offsetDays:45},{label:'70% on completion',pct:70,offsetDays:180}],
+    milestones:[{title:'MVP',date:'2025-09-01'}]
+  },
+  { id: 'C-003', client:'Green Energy', title:'Maintenance Retainer', start:'2025-01-01', end:'2025-12-31', value:120000,
+    paymentTerms:[{label:'Monthly',pct:8.33,offsetDays:30}],
+    milestones:[]
+  }
+];
+let invoices = []; // generated invoices
+let selectedContract = null;
+let chart=null;
+
+// ---------------- Utilities ----------------
+const parseDate = d => new Date(d);
+const fmt = d=> new Date(d).toISOString().slice(0,10);
+function money(n){return '$'+Number(n).toLocaleString()}
+
+// Generate invoices based on contract payment terms
+function generateInvoicesForContract(contract){
+  const result=[];
+  const start = parseDate(contract.start);
+  // If term is monthly-like (pct sums to ~100 across repeating months), we generate monthly items until end
+  const totalValue = contract.value;
+  contract.paymentTerms.forEach((term, idx)=>{
+    if(term.label.toLowerCase().includes('monthly')){
+      // monthly recurring: approximate monthly percentage
+      let cur = new Date(start);
+      while(cur <= parseDate(contract.end)){
+        const invDate = new Date(cur);
+        invDate.setDate(term.offsetDays || 0);
+        result.push({id:contract.id+'-M-'+fmt(invDate),contractId:contract.id,date:fmt(invDate),amount:Math.round(totalValue*(term.pct/100)),term:term.label,status:'pending',notes:[]});
+        cur.setMonth(cur.getMonth()+1);
+      }
+    } else {
+      // one-off terms: date = start + offsetDays
+      const d = new Date(start);
+      d.setDate(d.getDate() + (term.offsetDays||0));
+      result.push({id:contract.id+'-'+idx,contractId:contract.id,date:fmt(d),amount:Math.round(totalValue*(term.pct/100)),term:term.label,status:'pending',notes:[]});
+    }
+  });
+  return result;
+}
+
+function regenerateAllInvoices(){
+  invoices = [];
+  sampleContracts.forEach(c=>{
+    invoices = invoices.concat(generateInvoicesForContract(c));
+  });
+  // mark overdue based on today
+  const today = new Date();
+  invoices.forEach(inv=>{
+    if(inv.status==='pending'){
+      if(new Date(inv.date) < today) inv.status='overdue';
+    }
+  });
+}
+
+// ---------------- Rendering ----------------
+function renderContractList(){
+  const wrapper = document.getElementById('contractList'); wrapper.innerHTML='';
+  const q = document.getElementById('search').value.toLowerCase();
+  sampleContracts.filter(c=> (c.id+c.client+c.title).toLowerCase().includes(q)).forEach(c=>{
+    const el = document.createElement('div'); el.className='contract';
+    if(selectedContract && selectedContract.id===c.id) el.classList.add('active');
+    el.innerHTML = `<div style="display:flex;justify-content:space-between"><div><strong>${c.id}</strong> — ${c.client}</div><div class="small muted">${fmt(c.start)} → ${fmt(c.end)}</div></div><div class="small muted">${c.title} • ${money(c.value)}</div>`;
+    el.onclick = ()=>{selectContract(c.id)};
+    wrapper.appendChild(el);
+  });
+  document.getElementById('totalContracts').innerText = sampleContracts.length;
+}
+
+function selectContract(id){
+  selectedContract = sampleContracts.find(c=>c.id===id);
+  document.getElementById('selectedTitle').innerText = selectedContract.id + ' — ' + selectedContract.client;
+  document.getElementById('selectedDates').innerText = fmt(selectedContract.start) + ' → ' + fmt(selectedContract.end);
+  renderDetails(); renderInvoices(); renderContractList(); renderDashboard();
+}
+
+function renderDetails(){
+  const c = selectedContract; if(!c) return;
+  document.getElementById('contractSummary').innerHTML = `<div style="font-weight:600">${c.title}</div><div class="small muted">Total value: ${money(c.value)}</div>`;
+  document.getElementById('paymentTerms').innerText = c.paymentTerms.map(t=>`${t.label} — ${t.pct}% (target: ${t.offsetDays}d from start)`).join('\n') || '—';
+  document.getElementById('milestones').innerText = (c.milestones.length? c.milestones.map(m=>m.title+': '+m.date).join('\n') : '—');
+}
+
+function renderInvoices(){
+  const tbody = document.querySelector('#invoiceTable tbody'); tbody.innerHTML='';
+  const filter = document.getElementById('filterStatus').value;
+  const list = invoices.filter(i=> selectedContract? i.contractId===selectedContract.id : true)
+    .filter(i=> filter==='all' ? true : i.status===filter);
+  list.sort((a,b)=> new Date(a.date)-new Date(b.date));
+  list.forEach(inv=>{
+    const tr = document.createElement('tr');
+    const notes = inv.notes.length ? inv.notes.join(' | ') : '';
+    tr.innerHTML = `<td>${inv.date}</td><td>${money(inv.amount)}</td><td>${inv.term}</td><td><span class="status ${inv.status}">${inv.status}</span></td><td>${notes}</td><td>
+      <button class="btn ghost" onclick="togglePaid('${inv.id}')">Mark Paid</button>
+      <button class="btn" onclick="addNotePrompt('${inv.id}')">Add Note</button>
+    </td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function renderDashboard(){
+  // simple aggregation across invoices in range
+  const days = Number(document.getElementById('dashboardRange').value);
+  const end = new Date(); const start = new Date(); start.setDate(end.getDate()-days);
+  const inRange = invoices.filter(i=> new Date(i.date) >= start && new Date(i.date) <= end);
+  const issued = inRange.filter(i=> i.status==='issued' || i.status==='paid').reduce((s,i)=>s+i.amount,0);
+  const collected = inRange.filter(i=> i.status==='paid').reduce((s,i)=>s+i.amount,0);
+  const outstanding = inRange.filter(i=> i.status!=='paid').reduce((s,i)=>s+i.amount,0);
+  document.getElementById('issuedValue').innerText = money(issued);
+  document.getElementById('collectedValue').innerText = money(collected);
+  document.getElementById('outstandingValue').innerText = money(outstanding);
+
+  // trend chart: daily sums
+  const labels = []; const valuesIssued = []; const valuesCollected=[];
+  for(let d=new Date(start); d<=end; d.setDate(d.getDate()+1)){
+    labels.push(fmt(d));
+    const dayInv = invoices.filter(i=> i.date===fmt(d));
+    valuesIssued.push(dayInv.reduce((s,i)=> s + (i.status==='issued' || i.status==='paid'? i.amount:0),0));
+    valuesCollected.push(dayInv.reduce((s,i)=> s + (i.status==='paid'? i.amount:0),0));
+  }
+  if(chart) chart.destroy();
+  const ctx = document.getElementById('trendChart');
+  chart = new Chart(ctx,{
+    type:'line',data:{labels, datasets:[{label:'Issued',data:valuesIssued, tension:0.3},{label:'Collected',data:valuesCollected,tension:0.3}]},
+    options:{responsive:true,plugins:{legend:{position:'top'}}}
+  });
+}
+
+// ---------------- Actions ----------------
+function togglePaid(invId){
+  const inv = invoices.find(i=>i.id===invId); if(!inv) return;
+  inv.status = 'paid'; renderInvoices(); renderDashboard();
+}
+
+function addNotePrompt(invId){
+  const text = prompt('Add a follow-up note for this invoice:');
+  if(!text) return; const inv = invoices.find(i=>i.id===invId); inv.notes.push(text); renderInvoices();
+}
+
+function issueNextInvoice(){
+  if(!selectedContract) return alert('Select a contract first');
+  // find next pending or overdue invoice for contract
+  const list = invoices.filter(i=> i.contractId===selectedContract.id && (i.status==='pending' || i.status==='overdue')).sort((a,b)=> new Date(a.date)-new Date(b.date));
+  if(!list.length) return alert('No upcoming invoices to issue.');
+  const next = list[0]; next.status='issued'; next.issuedAt = new Date().toISOString(); renderInvoices(); renderDashboard();
+  alert('Issued '+next.id+' for '+money(next.amount));
+}
+
+function newContract(){
+  const id = prompt('New contract ID:'); if(!id) return;
+  const client = prompt('Client name:'); if(!client) return;
+  const title = prompt('Title:'); if(!title) return;
+  const start = prompt('Start date (YYYY-MM-DD):'); const end = prompt('End date (YYYY-MM-DD):'); const value = Number(prompt('Total value (number):'));
+  sampleContracts.push({id,client,title,start,end,value,paymentTerms:[{label:'50% upfront',pct:50,offsetDays:0},{label:'50% on completion',pct:50,offsetDays:Math.round((new Date(end)-new Date(start))/(1000*60*60*24))}],milestones:[]});
+  regenerateAllInvoices(); renderContractList();
+}
+
+function exportCsv(){
+  // very simple CSV of invoices for selected contract
+  const rows = ['Invoice ID,Contract,Date,Amount,Term,Status,Notes'];
+  invoices.filter(i=> selectedContract? i.contractId===selectedContract.id:true).forEach(i=>{
+    rows.push([i.id,i.contractId,i.date,i.amount,i.term,i.status,'"'+(i.notes||[]).join(' | ')+'"'].join(','));
+  });
+  const blob = new Blob([rows.join('\n')],{type:'text/csv'});
+  const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='invoices.csv'; a.click(); URL.revokeObjectURL(url);
+}
+
+// ---------------- Init ----------------
+regenerateAllInvoices(); renderContractList();
+
+// compute upcoming count
+function updateUpcomingCount(){
+  const today = new Date(); const up = invoices.filter(i=> new Date(i.date) > today).length; document.getElementById('upcomingCount').innerText = up;
+}
+updateUpcomingCount();
+
+// listeners
+document.getElementById('search').addEventListener('input',renderContractList);
+
+// switch tabs
+function switchTab(tab){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('#content > div.card').forEach(d=>d.style.display='none');
+  document.querySelector('.tab[data-tab="'+tab+'"]').classList.add('active');
+  document.getElementById(tab).style.display='block';
+}
+
+// small periodic update to flag overdue
+setInterval(()=>{
+  const now = new Date(); invoices.forEach(i=>{ if(i.status==='pending' && new Date(i.date) < now) i.status='overdue'; }); renderInvoices(); renderDashboard(); updateUpcomingCount(); }, 60_000);
+
+</script>
+</body>
+</html>
